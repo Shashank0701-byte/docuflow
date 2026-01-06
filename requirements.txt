@@ -8,3 +8,4 @@ python-dotenv
 sqlalchemy
 imap_tools
 pytest>=8.0.0
+watchdog>=4.0.0

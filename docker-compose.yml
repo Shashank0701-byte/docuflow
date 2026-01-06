@@ -15,3 +15,5 @@ services:
   # The Redis Queue (We will use this in Week 3)
   redis:
     image: "redis:alpine"
+    ports:
+      - "6379:6379"
