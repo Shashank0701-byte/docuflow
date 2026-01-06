@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  # Your Python App
+  app:
+    build: .
+    volumes:
+      - .:/app  # Syncs your folder with the container (Live Coding)
+    environment:
+      - TESSERACT_CMD=tesseract  # Linux command (not C:\Program Files...)
+      - POPPLER_PATH=/usr/bin    # Linux path
+    depends_on:
+      - redis
+
+  # The Redis Queue (We will use this in Week 3)
+  redis:
+    image: "redis:alpine"

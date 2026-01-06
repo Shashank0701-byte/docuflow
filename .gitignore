@@ -1,0 +1,20 @@
+# --- Python Standard ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# --- Project Specific ---
+# Don't upload the actual PDFs or extracted data
+data/raw/*
+data/archive/*
+!data/raw/.gitkeep  # Keeps the folder structure even if empty
+
+# --- IDE Settings ---
+.vscode/
+.idea/
+
+# --- OS Junk ---
+.DS_Store
+Thumbs.db

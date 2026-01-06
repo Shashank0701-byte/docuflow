@@ -1,0 +1,9 @@
+celery>=5.4.0
+redis>=5.0.0
+pytesseract
+pdf2image
+Pillow>=11.0.0
+pydantic>=2.10.0
+python-dotenv
+sqlalchemy
+imap_tools
