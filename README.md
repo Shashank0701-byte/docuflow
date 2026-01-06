@@ -34,3 +34,28 @@ The system follows a distributed microservices pattern:
    ```bash
    git clone [https://github.com/yourusername/docuflow.git](https://github.com/yourusername/docuflow.git)
    cd docuflow
+Create Virtual Environment
+
+Bash
+
+python -m venv venv
+.\venv\Scripts\activate
+Install Dependencies
+
+Bash
+
+pip install -r requirements.txt
+Configure Environment Create a .env file and add your configuration (see .env.example).
+
+Run the Processor
+
+Bash
+
+python src/main.py
+🐳 Running with Docker
+Build and run the containerized application:
+
+Bash
+
+docker build -t docuflow .
+docker run -v $(pwd)/data:/app/data docuflow
