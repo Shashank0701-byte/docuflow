@@ -1,19 +1,24 @@
 version: '3.8'
 
 services:
-  # Your Python App
-  app:
-    build: .
-    volumes:
-      - .:/app  # Syncs your folder with the container (Live Coding)
-    environment:
-      - TESSERACT_CMD=tesseract  # Linux command (not C:\Program Files...)
-      - POPPLER_PATH=/usr/bin    # Linux path
-    depends_on:
-      - redis
-
-  # The Redis Queue (We will use this in Week 3)
+  # 1. Redis (Message Queue) - ALREADY HAD THIS
   redis:
     image: "redis:alpine"
     ports:
       - "6379:6379"
+
+  # 2. PostgreSQL (The Database) - NEW
+  db:
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=docuflow
+      - POSTGRES_PASSWORD=docuflow_pass
+      - POSTGRES_DB=docuflow_db
+    ports:
+      - "5432:5432"  # Allows Python on Windows to talk to Docker DB
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
