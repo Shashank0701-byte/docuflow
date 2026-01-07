@@ -1,13 +1,11 @@
 version: '3.8'
 
 services:
-  # 1. Redis (Message Queue) - ALREADY HAD THIS
   redis:
     image: "redis:alpine"
     ports:
       - "6379:6379"
 
-  # 2. PostgreSQL (The Database) - NEW
   db:
     image: postgres:15-alpine
     restart: always
@@ -16,9 +14,52 @@ services:
       - POSTGRES_PASSWORD=docuflow_pass
       - POSTGRES_DB=docuflow_db
     ports:
-      - "5432:5432"  # Allows Python on Windows to talk to Docker DB
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    command: streamlit run src/dashboard.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/src
+      - DATABASE_URL=postgresql://docuflow:docuflow_pass@db:5432/docuflow_db
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: .
+    command: celery -A core.celery_config worker --loglevel=info
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/src  
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=postgresql://docuflow:docuflow_pass@db:5432/docuflow_db
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - POPPLER_PATH=/usr/bin
+    depends_on:
+      - db
+      - redis
+
+  watcher:
+    build: .
+    command: python src/watcher.py
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app/src   
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0  
+    depends_on:
+      - redis
+      - worker
 
 volumes:
   postgres_data:

@@ -1,48 +1,53 @@
 import time
 import os
-from watchdog.observers import Observer
+import logging
+from watchdog.observers.polling import PollingObserver as Observer
 from watchdog.events import FileSystemEventHandler
-from workers.tasks import process_document_task
 
-class NewFileHandler(FileSystemEventHandler):
+# --- FIX: IMPORT FROM 'WORKERS' NOT 'CORE' ---
+# Your file tree shows the task is in src/workers/tasks.py
+try:
+    from workers.tasks import process_document
+except ImportError:
+    # Fallback in case you named the function 'process_document_task'
+    from workers.tasks import process_document_task as process_document
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+WATCH_DIR = "/app/data/raw"
+
+class InvoiceHandler(FileSystemEventHandler):
     def on_created(self, event):
-        # 1. Ignore folders, only look at files
         if event.is_directory:
             return
-
-        # 2. Only process PDFs
         if not event.src_path.lower().endswith('.pdf'):
             return
 
-        print(f"👀 New file detected: {event.src_path}")
+        logger.info(f"👀 New file detected: {event.src_path}")
         
-        # 3. Wait a second to ensure file copy is finished (Windows quirk)
         time.sleep(1)
         
-        # 4. Send to Celery!
-        task = process_document_task.delay(event.src_path)
-        print(f"🚀 Sent to Queue. Task ID: {task.id}")
+        # Send to Celery
+        task = process_document.delay(event.src_path)
+        logger.info(f"🚀 Sent to Queue. Task ID: {task.id}")
 
-def start_watching():
-    # Define the folder to watch
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    watch_folder = os.path.join(base_dir, "data", "raw")
+if __name__ == "__main__":
+    if not os.path.exists(WATCH_DIR):
+        os.makedirs(WATCH_DIR)
 
-    # Create the observer
-    event_handler = NewFileHandler()
+    event_handler = InvoiceHandler()
     observer = Observer()
-    observer.schedule(event_handler, watch_folder, recursive=False)
+    observer.schedule(event_handler, path=WATCH_DIR, recursive=False)
     
-    print(f"🕵️  Watching folder: {watch_folder}")
-    print("Press Ctrl+C to stop.")
-    
+    logger.info(f"🕵️  Watching folder (POLLING MODE): {WATCH_DIR}")
     observer.start()
+
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()
+    
     observer.join()
-
-if __name__ == "__main__":
-    start_watching()
