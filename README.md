@@ -1,4 +1,4 @@
-# 🚀 DocuFlow: Intelligent Invoice Ingestion Pipeline
+# 🚀 DocuFlow — Intelligent Invoice Ingestion Pipeline
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)
@@ -6,113 +6,178 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Status](https://img.shields.io/badge/Build-Passing-brightgreen)
 
-**DocuFlow** is a robust, containerized, event-driven data pipeline designed to automate the ingestion, processing, and analysis of financial documents. It leverages **Optical Character Recognition (OCR)** to extract unstructured data from PDF invoices and transforms it into structured insights via a real-time dashboard.
+DocuFlow is a containerized, event-driven data pipeline that automates ingestion, OCR, parsing, and analytics for invoices and other financial documents. It uses a small microservice stack so heavy OCR work runs asynchronously without blocking the UI.
+
+Quick highlights:
+- Hot-folder watcher for real-time ingestion
+- Celery + Redis for asynchronous OCR and parsing tasks
+- Tesseract + Poppler for PDF/image text extraction
+- PostgreSQL for structured invoice storage
+- Streamlit dashboard for visualization and quick analysis
 
 ---
 
 ## 🏗️ Architecture
 
-The system follows a microservices architecture orchestrated by Docker Compose.
+The system follows a microservices pattern orchestrated with Docker Compose.
 
 ```mermaid
 graph LR
-    A[📂 Data/Raw Folder] -->|New PDF Detected| B(🕵️ Watcher Service)
-    B -->|Push Task| C{Redis Message Broker}
-    C -->|Distribute Task| D[⚙️ Celery Worker]
-    D -->|Extract Text| E[Tesseract OCR]
-    D -->|Save Structured Data| F[(PostgreSQL DB)]
-    F -->|Query Data| G[📊 Streamlit Dashboard]
+  A[data/raw (Hot Folder)] -->|New PDF detected| B[Watcher Service]
+  B -->|Push Task| C[Redis (Broker)]
+  C -->|Distribute Task| D[Celery Worker(s)]
+  D -->|Extract Text| E[Tesseract OCR + Poppler]
+  D -->|Parse & Save| F[(PostgreSQL)]
+  F -->|Query| G[Streamlit Dashboard]
+```
 
+Key flow: drop a PDF into `data/raw` → watcher detects it → pushes a Celery task into Redis → worker runs OCR & parsing → stores normalized invoice rows in Postgres → dashboard reads and visualizes results.
 
-✨ Key Features
-Event-Driven Ingestion: Monitors a "Hot Folder" for new PDF files in real-time using watchdog (configured with Polling for WSL2/Docker compatibility).
+---
 
-Asynchronous Processing: Utilizes Celery and Redis to handle heavy OCR tasks in the background without blocking the main application.
+## ✨ Features
 
-OCR & Parsing: Integrates Tesseract OCR and Regex-based parsing logic to extract Invoice #, Date, Vendor, and Total Amount.
+- Event-driven ingestion from a monitored "Hot Folder"
+- Asynchronous processing using Celery and Redis for scalability
+- OCR (Tesseract) with PDF → image conversion (Poppler)
+- Regex-based parsing to extract Invoice #, Date, Vendor, Total Amount
+- Duplicate detection to avoid re-processing the same invoice
+- Streamlit dashboard with charts and logs for real-time visibility
+- Docker Compose-based cross-platform deployment
 
-Data Integrity: Implements duplication checks to prevent processing the same invoice twice.
+---
 
-Analytics Dashboard: Interactive Streamlit UI with Plotly charts for spend analysis, vendor tracking, and real-time logs.
+## 🛠️ Tech Stack
 
-Cross-Platform Dockerization: Runs seamlessly on Windows, Linux, and Mac via Docker Compose, handling system-level dependencies (Poppler, Tesseract) automatically.
+- Language: Python 3.11
+- Orchestration: Docker Compose
+- Broker: Redis
+- Database: PostgreSQL 15
+- Task Queue: Celery
+- OCR: Tesseract + Poppler
+- Frontend: Streamlit
+- ORM: SQLAlchemy
 
-🛠️ Tech Stack
+---
 
-Component,Technology,Description
-Language,Python 3.11,Core logic
-Orchestration,Docker Compose,Multi-container management
-Broker,Redis,Message queue for task distribution
-Database,PostgreSQL 15,Persistent storage for invoice data
-Task Queue,Celery,Async worker management
-OCR Engine,Tesseract + Poppler,Text extraction from images/PDFs
-Frontend,Streamlit,Data visualization dashboard
-ORM,SQLAlchemy,Database interaction
+## 📂 Project Structure
 
-📂 Project Structure
+Use the tree below (plain ASCII) to avoid rendering issues:
 
+```
 docuflow/
 ├── data/
-│   └── raw/               # Drop your PDFs here (The "Hot Folder")
+│   └── raw/               # Drop PDFs here (Hot Folder)
 ├── src/
 │   ├── core/
-│   │   ├── ocr.py         # Tesseract/PDF2Image logic
-│   │   ├── parser.py      # Regex logic for extracting invoice details
-│   │   └── database.py    # Database connection & Models
+│   │   ├── ocr.py         # Tesseract / PDF2Image logic
+│   │   ├── parser.py      # Regex / parsing logic
+│   │   └── database.py    # DB models & connection
 │   ├── workers/
 │   │   └── tasks.py       # Celery task definitions
 │   ├── dashboard.py       # Streamlit UI
-│   └── watcher.py         # Watchdog script (Producer)
-├── docker-compose.yml     # Infrastructure as Code
-├── Dockerfile             # Container definition
-└── requirements.txt       # Python dependencies
+│   └── watcher.py         # Watchdog-based producer
+├── docker-compose.yml
+├── Dockerfile
+└── requirements.txt
+```
 
+---
 
+## 🚀 Getting Started
 
-🚀 Getting Started
 Prerequisites
-Docker Desktop installed and running.
+- Docker Desktop (Windows / Mac) or Docker + docker-compose (Linux).
+- (Optional, for local non-Docker runs) Install system dependencies:
+  - Tesseract (with language data)
+  - Poppler (for pdf2image)
+  - PostgreSQL or a running Postgres instance
 
-Installation
 Clone the repository:
-Bash
-
-git clone [https://github.com/yourusername/docuflow.git](https://github.com/yourusername/docuflow.git)
+```bash
+git clone https://github.com/Shashank0701-byte/docuflow.git
 cd docuflow
+```
 
-Build and Start the System:
-Bash
-
+Build and start the system:
+```bash
 docker compose up --build
+```
 
+Wait until logs show Celery worker(s) ready and the watcher reports polling mode. Then open:
+- Streamlit dashboard: http://localhost:8501
 
-Wait for the logs to show celery@... ready and Watcher... (POLLING MODE).
+How to ingest:
+- Copy or save a PDF invoice into `data/raw`. The watcher will detect the new file and queue processing.
+- Watch the service logs:
+  - Watcher: "New file detected"
+  - Worker: "Celery Task started" → "Saved to Database"
 
-Access the Dashboard: Open your browser to: http://localhost:8501
+Notes:
+- When testing, include human-readable text (e.g., "Invoice #", "Date", "Total") to help the parser.
+- The watcher uses polling (compatible with WSL2/Docker on Windows); renaming/moving in some OSes may not trigger events—see troubleshooting below.
 
-🎮 Usage Guide
-Ingest Data: Drag and drop any PDF invoice into the data/raw folder on your local machine. (Note: If testing with dummy files, ensure they contain text like "Invoice #", "Date", and "Total").
+---
 
-Watch the Magic:
+## 🔧 Configuration & Environment
 
-Watcher Logs: Will trigger 👀 New file detected.
+Example environment variables used by the services in docker-compose:
 
-Worker Logs: Will trigger ⚡ Celery Task Started -> ✅ Saved to Database.
+- REDIS_URL (e.g., redis://redis:6379/0)
+- DATABASE_URL (e.g., postgresql://user:password@postgres:5432/docuflow)
+- CELERY_BROKER_URL (same as REDIS_URL)
+- CELERY_RESULT_BACKEND (same as REDIS_URL)
 
-Analyze: Refresh the Dashboard to see the Total Spend, Vendor breakdown, and recent transactions update instantly.
+If you'd like, I can add a `.env.example` with recommended values.
 
-🔧 Troubleshooting
+---
+
+## 🧪 Troubleshooting
+
 1. "New File Detected" doesn't trigger on Windows/WSL2:
+   - The watcher is configured to use PollingObserver for compatibility. Ensure you place a brand-new file in `data/raw` (copy/paste or create new file). Renaming existing files sometimes does not trigger events on some volumes.
 
-Solution: The watcher is configured to use PollingObserver. Ensure you are pasting a new file or using Copy/Paste. Renaming an existing file might be ignored depending on OS signals.
+2. Dashboard shows empty charts:
+   - Confirm files have text that Tesseract can read. Low-quality scans or images may produce poor OCR.
+   - Check worker logs for parsing failures. If OCR fails completely, amounts may default to 0.0.
 
-2. Dashboard shows Empty Charts:
+3. Tesseract errors in Docker:
+   - Ensure the Docker image includes Tesseract and language packs. The provided Dockerfile should install Tesseract/Poppler. If not, add installation lines or use an image that bundles them.
 
-Solution: Ensure your PDFs are readable. The system handles NaN values gracefully, but if OCR fails completely, the amount defaults to 0.0.
+4. Duplicate invoice detection:
+   - The system uses an ID (hash or invoice number + vendor + date) to avoid duplicates. If duplicates are still appearing, check the parsing normalization logic in `parser.py`.
 
-🔮 Future Roadmap
-[ ] Integration with LLMs (OpenAI/Gemini) for smarter parsing of non-standard invoices.
+---
 
-[ ] Email integration (auto-ingest from inbox).
+## 📈 Dashboard Overview
 
-[ ] User Authentication for the Dashboard.
+The Streamlit UI displays:
+- Total spend over time
+- Vendor breakdown and top vendors
+- Recent parsed invoices with status and raw OCR logs
+- Real-time task logs (watcher & worker)
+
+---
+
+## 🛣️ Roadmap
+
+- [ ] Integrate LLMs (OpenAI/Gemini) for non-standard invoice parsing
+- [ ] Email ingestion (auto-ingest invoices from mailbox)
+- [ ] User authentication for the dashboard
+- [ ] Add sample PDFs for testing and automated integration tests
+- [ ] CI pipeline and image scanning
+
+---
+
+## Contributing
+
+Contributions welcome! Open an issue or a PR:
+- Preface PRs with a clear title and describe the changes.
+- Add tests for parsing changes when possible.
+- For large features (email ingestion, LLM parsing), open an issue first to discuss design.
+
+---
+
+## License
+
+This project is available under the MIT License — see the included LICENSE file for details.
