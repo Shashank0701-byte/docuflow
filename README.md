@@ -76,43 +76,30 @@ Docker Desktop installed and running.
 Installation
 Clone the repository:
 Bash
-
-git clone [https://github.com/yourusername/docuflow.git](https://github.com/yourusername/docuflow.git)
-cd docuflow
+    git clone [https://github.com/yourusername/docuflow.git](https://github.com/yourusername/docuflow.git)
+    cd docuflow
 
 Build and Start the System:
 Bash
-
-docker compose up --build
-
+    docker compose up --build
 
 Wait for the logs to show celery@... ready and Watcher... (POLLING MODE).
-
 Access the Dashboard: Open your browser to: http://localhost:8501
 
 🎮 Usage Guide
 Ingest Data: Drag and drop any PDF invoice into the data/raw folder on your local machine. (Note: If testing with dummy files, ensure they contain text like "Invoice #", "Date", and "Total").
-
 Watch the Magic:
-
 Watcher Logs: Will trigger 👀 New file detected.
-
 Worker Logs: Will trigger ⚡ Celery Task Started -> ✅ Saved to Database.
-
 Analyze: Refresh the Dashboard to see the Total Spend, Vendor breakdown, and recent transactions update instantly.
 
 🔧 Troubleshooting
 1. "New File Detected" doesn't trigger on Windows/WSL2:
-
 Solution: The watcher is configured to use PollingObserver. Ensure you are pasting a new file or using Copy/Paste. Renaming an existing file might be ignored depending on OS signals.
-
 2. Dashboard shows Empty Charts:
-
 Solution: Ensure your PDFs are readable. The system handles NaN values gracefully, but if OCR fails completely, the amount defaults to 0.0.
 
 🔮 Future Roadmap
 [ ] Integration with LLMs (OpenAI/Gemini) for smarter parsing of non-standard invoices.
-
 [ ] Email integration (auto-ingest from inbox).
-
 [ ] User Authentication for the Dashboard.
