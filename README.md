@@ -6,63 +6,71 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B?logo=streamlit&logoColor=white)
 ![Status](https://img.shields.io/badge/Build-Passing-brightgreen)
 
-DocuFlow is a containerized, event-driven data pipeline that automates ingestion, OCR, parsing, and analytics for invoices and other financial documents. It uses a small microservice stack so heavy OCR work runs asynchronously without blocking the UI.
+DocuFlow is a containerized, event-driven pipeline that automates ingestion, OCR, parsing, and analytics for invoices and financial documents. It uses a lightweight microservice pattern so heavy OCR work runs asynchronously and does not block the UI.
 
 Quick highlights:
 - Hot-folder watcher for real-time ingestion
-- Celery + Redis for asynchronous OCR and parsing tasks
+- Celery + Redis for asynchronous OCR and parsing
 - Tesseract + Poppler for PDF/image text extraction
-- PostgreSQL for structured invoice storage
+- PostgreSQL for persistent storage
 - Streamlit dashboard for visualization and quick analysis
 
 ---
 
 ## 🏗️ Architecture
 
-The system follows a microservices pattern orchestrated with Docker Compose.
+The system follows a microservices pattern and is orchestrated with Docker Compose.
+
+If GitHub renders the diagram you will see the flow below. If it doesn't, a plain ASCII fallback is provided right after.
 
 ```mermaid
 graph LR
-  A[data/raw (Hot Folder)] -->|New PDF detected| B[Watcher Service]
-  B -->|Push Task| C[Redis (Broker)]
-  C -->|Distribute Task| D[Celery Worker(s)]
-  D -->|Extract Text| E[Tesseract OCR + Poppler]
-  D -->|Parse & Save| F[(PostgreSQL)]
-  F -->|Query| G[Streamlit Dashboard]
+  A[data_raw_hot_folder] -->|New PDF detected| B[watcher_service]
+  B -->|Push task| C[redis_broker]
+  C -->|Distribute task| D[celery_worker]
+  D -->|Extract text| E[tesseract_poppler]
+  D -->|Parse & save| F[postgres_db]
+  F -->|Query| G[streamlit_dashboard]
 ```
 
-Key flow: drop a PDF into `data/raw` → watcher detects it → pushes a Celery task into Redis → worker runs OCR & parsing → stores normalized invoice rows in Postgres → dashboard reads and visualizes results.
+Plain fallback (always visible):
+
+```
+Flow:
+data/raw (Hot Folder) -> Watcher Service -> Redis (Broker) -> Celery Worker(s)
+Celery Worker -> OCR (Tesseract + Poppler) -> Parse -> PostgreSQL -> Streamlit Dashboard
+```
 
 ---
 
 ## ✨ Features
 
 - Event-driven ingestion from a monitored "Hot Folder"
-- Asynchronous processing using Celery and Redis for scalability
-- OCR (Tesseract) with PDF → image conversion (Poppler)
-- Regex-based parsing to extract Invoice #, Date, Vendor, Total Amount
+- Asynchronous processing using Celery + Redis for scalability and resiliency
+- OCR pipeline: PDF -> images -> Tesseract (via pdf2image / Poppler)
+- Regex-based parsing to extract Invoice Number, Date, Vendor, Total Amount
 - Duplicate detection to avoid re-processing the same invoice
-- Streamlit dashboard with charts and logs for real-time visibility
-- Docker Compose-based cross-platform deployment
+- Streamlit dashboard with charts, vendor breakdown, and recent transactions
+- Cross-platform Docker Compose deployment
 
 ---
 
 ## 🛠️ Tech Stack
 
-- Language: Python 3.11
-- Orchestration: Docker Compose
-- Broker: Redis
-- Database: PostgreSQL 15
-- Task Queue: Celery
-- OCR: Tesseract + Poppler
-- Frontend: Streamlit
+- Language: Python 3.11  
+- Orchestration: Docker Compose  
+- Broker: Redis  
+- Database: PostgreSQL 15  
+- Task Queue: Celery  
+- OCR: Tesseract + Poppler (pdf2image)  
+- Frontend: Streamlit  
 - ORM: SQLAlchemy
 
 ---
 
 ## 📂 Project Structure
 
-Use the tree below (plain ASCII) to avoid rendering issues:
+Use the ASCII tree below — it's intentionally plain so it displays consistently across renderers.
 
 ```
 docuflow/
@@ -70,7 +78,7 @@ docuflow/
 │   └── raw/               # Drop PDFs here (Hot Folder)
 ├── src/
 │   ├── core/
-│   │   ├── ocr.py         # Tesseract / PDF2Image logic
+│   │   ├── ocr.py         # Tesseract / pdf2image logic
 │   │   ├── parser.py      # Regex / parsing logic
 │   │   └── database.py    # DB models & connection
 │   ├── workers/
@@ -79,7 +87,8 @@ docuflow/
 │   └── watcher.py         # Watchdog-based producer
 ├── docker-compose.yml
 ├── Dockerfile
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
 ---
@@ -91,7 +100,7 @@ Prerequisites
 - (Optional, for local non-Docker runs) Install system dependencies:
   - Tesseract (with language data)
   - Poppler (for pdf2image)
-  - PostgreSQL or a running Postgres instance
+  - A running PostgreSQL instance (or let Docker Compose create one)
 
 Clone the repository:
 ```bash
@@ -99,85 +108,91 @@ git clone https://github.com/Shashank0701-byte/docuflow.git
 cd docuflow
 ```
 
-Build and start the system:
+Build and start the stack:
 ```bash
 docker compose up --build
 ```
 
-Wait until logs show Celery worker(s) ready and the watcher reports polling mode. Then open:
+Wait until the logs show Celery worker(s) ready and the watcher reporting polling mode. Then open:
 - Streamlit dashboard: http://localhost:8501
 
 How to ingest:
 - Copy or save a PDF invoice into `data/raw`. The watcher will detect the new file and queue processing.
-- Watch the service logs:
+- Watch logs:
   - Watcher: "New file detected"
-  - Worker: "Celery Task started" → "Saved to Database"
+  - Worker: "Celery task started" → "Saved to database"
 
 Notes:
-- When testing, include human-readable text (e.g., "Invoice #", "Date", "Total") to help the parser.
-- The watcher uses polling (compatible with WSL2/Docker on Windows); renaming/moving in some OSes may not trigger events—see troubleshooting below.
+- For reliable parsing include human-readable tokens like "Invoice", "Date", and "Total".
+- The watcher uses polling (compatible with many Docker/WSL setups); some file operations (rename/move) may not trigger events on certain host/volume configurations.
 
 ---
 
 ## 🔧 Configuration & Environment
 
-Example environment variables used by the services in docker-compose:
+Services are configured via environment variables in docker-compose. Typical variables:
 
-- REDIS_URL (e.g., redis://redis:6379/0)
-- DATABASE_URL (e.g., postgresql://user:password@postgres:5432/docuflow)
-- CELERY_BROKER_URL (same as REDIS_URL)
+- REDIS_URL (e.g., redis://redis:6379/0)  
+- DATABASE_URL (e.g., postgresql://user:password@postgres:5432/docuflow)  
+- CELERY_BROKER_URL (same as REDIS_URL)  
 - CELERY_RESULT_BACKEND (same as REDIS_URL)
 
-If you'd like, I can add a `.env.example` with recommended values.
+If you'd like, I can add a `.env.example` file with recommended values.
 
 ---
 
 ## 🧪 Troubleshooting
 
 1. "New File Detected" doesn't trigger on Windows/WSL2:
-   - The watcher is configured to use PollingObserver for compatibility. Ensure you place a brand-new file in `data/raw` (copy/paste or create new file). Renaming existing files sometimes does not trigger events on some volumes.
+   - The watcher uses a PollingObserver for compatibility. Ensure you place a brand-new file (copy/paste or create new). Renaming or moving files may not trigger events depending on host/volume behavior.
 
-2. Dashboard shows empty charts:
-   - Confirm files have text that Tesseract can read. Low-quality scans or images may produce poor OCR.
-   - Check worker logs for parsing failures. If OCR fails completely, amounts may default to 0.0.
+2. Diagram won't render on GitHub (Mermaid parse error):
+   - GitHub's Mermaid renderer is strict. Avoid emojis, nested bracket/parenthesis node notation (e.g., don't use F[(PostgreSQL)]), and avoid certain special characters (&, +) inside node labels.
+   - Use simple labels in nodes and put human-readable text on edge labels (as we do above).
+   - If rendering still fails, use the plain ASCII fallback or include a pre-generated SVG/PNG diagram in the repo and reference it from the README.
 
-3. Tesseract errors in Docker:
-   - Ensure the Docker image includes Tesseract and language packs. The provided Dockerfile should install Tesseract/Poppler. If not, add installation lines or use an image that bundles them.
+3. Dashboard shows empty charts:
+   - Ensure OCR succeeded. Inspect worker logs for parsing errors. Low-quality scans may yield poor OCR results.
 
-4. Duplicate invoice detection:
-   - The system uses an ID (hash or invoice number + vendor + date) to avoid duplicates. If duplicates are still appearing, check the parsing normalization logic in `parser.py`.
+4. Tesseract errors in Docker:
+   - Confirm the Dockerfile installs Tesseract and Poppler. If errors persist, run Tesseract locally to check available language packs.
+
+5. Duplicate invoice entries:
+   - The system attempts deduplication using a composite identifier (hash or invoice number + vendor + date). If duplicates appear, review normalization logic in `src/core/parser.py`.
 
 ---
 
 ## 📈 Dashboard Overview
 
-The Streamlit UI displays:
+The Streamlit UI includes:
 - Total spend over time
 - Vendor breakdown and top vendors
-- Recent parsed invoices with status and raw OCR logs
-- Real-time task logs (watcher & worker)
+- Recent parsed invoices with status and OCR logs
+- Task logs (watcher & workers)
 
 ---
 
 ## 🛣️ Roadmap
 
-- [ ] Integrate LLMs (OpenAI/Gemini) for non-standard invoice parsing
-- [ ] Email ingestion (auto-ingest invoices from mailbox)
-- [ ] User authentication for the dashboard
-- [ ] Add sample PDFs for testing and automated integration tests
+- [ ] Integrate LLMs (OpenAI/Gemini) for complex invoice parsing  
+- [ ] Email ingestion (auto-ingest invoices from mailbox)  
+- [ ] User authentication for the dashboard  
+- [ ] Add sample PDFs for testing and CI integration tests  
 - [ ] CI pipeline and image scanning
 
 ---
 
 ## Contributing
 
-Contributions welcome! Open an issue or a PR:
-- Preface PRs with a clear title and describe the changes.
-- Add tests for parsing changes when possible.
-- For large features (email ingestion, LLM parsing), open an issue first to discuss design.
+Contributions welcome! Please open an issue or a PR.
+
+Guidelines:
+- Open an issue before large features (email ingestion, LLM parsing) to discuss design.
+- Include tests where possible for parser changes.
+- Use clear commit messages and reference related issues.
 
 ---
 
 ## License
 
-This project is available under the MIT License — see the included LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for full details.
