@@ -1,56 +1,94 @@
-import re
+import os
+import json
+import logging
+import requests
 from datetime import datetime
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def parse_invoice(text):
     """
-    Parses OCR text to extract metadata using Regex:
-    - Invoice Number
-    - Date
-    - Vendor Name
-    - Total Amount
+    Extracts data using the Gemini REST API directly.
+    Bypasses SDK versioning issues.
     """
-    data = {}
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        logger.error("❌ GEMINI_API_KEY is missing!")
+        return {}
+
+    # Endpoint: Using Gemini 2.5 Flash (current recommended model as of 2026)
+    url = "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent"
+
+    # Prompt
+    prompt_text = f"""
+    Extract the following fields from the OCR text below and return ONLY valid JSON.
+    Do not add Markdown formatting (no ```json).
     
-    # Clean text
-    clean_text = text.strip()
-    lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+    Fields:
+    - vendor (string): Issuer name.
+    - invoice_number (string): Identifier. Use "UNK-000" if missing.
+    - date (string): YYYY-MM-DD format. Use today if missing.
+    - total_amount (float): Final amount (number only).
 
-    # 1. Vendor Name (Heuristic: First non-empty line is usually the vendor)
-    if lines:
-        data['vendor'] = lines[0]
-    else:
-        data['vendor'] = "Unknown Vendor"
+    OCR Text:
+    {text}
+    """
 
-    # 2. Invoice Number
-    # Looks for: "Invoice #123", "Inv: 123", "Invoice Number: 123"
-    inv_match = re.search(r'(?i)(invoice\s*#|inv\.|invoice\s*number)[:\s]*([a-zA-Z0-9-]+)', text)
-    if inv_match:
-        data['invoice_number'] = inv_match.group(2)
-    else:
-        # Fallback if not found
-        data['invoice_number'] = f"UNK-{datetime.now().strftime('%H%M%S')}"
+    # Payload
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt_text}]
+        }]
+    }
 
-    # 3. Date
-    # Looks for dates like: 12/05/2023, 2023-05-12, 12-05-2023
-    date_match = re.search(r'(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})', text)
-    if date_match:
-        data['date'] = date_match.group(1)
-    else:
-        data['date'] = datetime.now().strftime('%Y-%m-%d')
+    try:
+        logger.info("🤖 Sending Raw REST Request to Gemini 2.5 Flash...")
+        
+        response = requests.post(
+            url, 
+            headers={
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key
+            },
+            json=payload
+        )
 
-    # 4. Total Amount
-    # Looks for: "Total: $1,200.50", "Amount Due: 500"
-    # Matches patterns with currency symbols optionally
-    amount_match = re.search(r'(?i)(total|amount|due|balance|grand\s*total)[:\s]*[\$€£]?\s*([\d,]+\.?\d{0,2})', text)
-    
-    if amount_match:
+        # Check for HTTP Errors (404, 400, 500)
+        if response.status_code != 200:
+            logger.error(f"❌ API Error {response.status_code}: {response.text}")
+            return fallback_data()
+
+        # Parse Response
+        response_json = response.json()
+        
+        # Safe Extraction Logic
         try:
-            # Remove commas (e.g., "1,200.00" -> "1200.00")
-            amount_str = amount_match.group(2).replace(',', '')
-            data['total_amount'] = float(amount_str)
-        except ValueError:
-            data['total_amount'] = 0.0
-    else:
-        data['total_amount'] = 0.0
+            raw_text = response_json['candidates'][0]['content']['parts'][0]['text']
+            
+            # Clean Markdown (Standard cleanup)
+            clean_json = raw_text.strip()
+            if clean_json.startswith("```json"): clean_json = clean_json[7:]
+            if clean_json.startswith("```"): clean_json = clean_json[3:]
+            if clean_json.endswith("```"): clean_json = clean_json[:-3]
+            
+            data = json.loads(clean_json)
+            logger.info(f"✅ AI Extraction Success: {data}")
+            return data
 
-    return data
+        except (KeyError, IndexError, json.JSONDecodeError) as e:
+            logger.error(f"❌ Failed to parse AI JSON response: {e}")
+            return fallback_data()
+
+    except Exception as e:
+        logger.error(f"❌ Connection Failed: {e}")
+        return fallback_data()
+
+def fallback_data():
+    return {
+        "vendor": "AI_ERROR", 
+        "total_amount": 0.0, 
+        "invoice_number": "ERR", 
+        "date": datetime.now().strftime('%Y-%m-%d')
+    }
