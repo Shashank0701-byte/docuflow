@@ -1,4 +1,4 @@
-# 🚀 DocuFlow — Intelligent Invoice Ingestion Pipeline
+# DocuFlow — Intelligent Invoice Ingestion Pipeline
 
 ![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED?logo=docker&logoColor=white)
@@ -43,7 +43,7 @@ Celery Worker -> OCR (Tesseract + Poppler) -> Parse -> PostgreSQL -> Streamlit D
 
 ---
 
-## ✨ Features
+##  Features
 
 - Event-driven ingestion from a monitored "Hot Folder"
 - Asynchronous processing using Celery + Redis for scalability and resiliency
@@ -93,7 +93,7 @@ docuflow/
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 Prerequisites
 - Docker Desktop (Windows / Mac) or Docker + docker-compose (Linux).
@@ -141,7 +141,7 @@ If you'd like, I can add a `.env.example` file with recommended values.
 
 ---
 
-## 🧪 Troubleshooting
+##  Troubleshooting
 
 1. "New File Detected" doesn't trigger on Windows/WSL2:
    - The watcher uses a PollingObserver for compatibility. Ensure you place a brand-new file (copy/paste or create new). Renaming or moving files may not trigger events depending on host/volume behavior.
@@ -162,7 +162,7 @@ If you'd like, I can add a `.env.example` file with recommended values.
 
 ---
 
-## 📈 Dashboard Overview
+## Dashboard Overview
 
 The Streamlit UI includes:
 - Total spend over time
@@ -172,7 +172,7 @@ The Streamlit UI includes:
 
 ---
 
-## 🛣️ Roadmap
+##  Roadmap
 
 - [ ] Integrate LLMs (OpenAI/Gemini) for complex invoice parsing  
 - [ ] Email ingestion (auto-ingest invoices from mailbox)  
